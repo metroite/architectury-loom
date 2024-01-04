@@ -26,6 +26,7 @@ package net.fabricmc.loom.build;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -90,6 +91,12 @@ public class ModCompileRemapper {
 					String group = replaceIfNullOrEmpty(artifact.getModuleVersion().getId().getGroup(), () -> MISSING_GROUP);
 					String name = artifact.getModuleVersion().getId().getName();
 					String version = replaceIfNullOrEmpty(artifact.getModuleVersion().getId().getVersion(), () -> Checksum.truncatedSha256(artifact.getFile()));
+
+					try {
+						ModUtils.validateJarManifest(artifact.getFile().toPath());
+					} catch (IOException e) {
+						throw new UncheckedIOException("Failed to read manifest from" + artifact.getFile(), e);
+					}
 
 					if (!ModUtils.shouldRemapMod(project.getLogger(), artifact.getFile(), artifact.getId(), extension.getPlatform().get(), sourceConfig.getName())) {
 						addToRegularCompile(project, regularConfig, artifact);

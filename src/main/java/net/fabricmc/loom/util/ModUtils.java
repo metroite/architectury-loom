@@ -24,11 +24,15 @@
 
 package net.fabricmc.loom.util;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.jar.Attributes;
+import java.util.jar.Manifest;
 
 import com.google.gson.JsonObject;
 import org.gradle.api.logging.Logger;
@@ -81,5 +85,22 @@ public final class ModUtils {
 		}
 
 		return false;
+	}
+
+	public static void validateJarManifest(Path path) throws IOException {
+		try (FileSystemUtil.Delegate fs = FileSystemUtil.getJarFileSystem(path)) {
+			final Path manifestPath = fs.get().getPath("META-INF/MANIFEST.MF");
+
+			if (Files.exists(manifestPath)) {
+				final var manifest = new Manifest(new ByteArrayInputStream(Files.readAllBytes(manifestPath)));
+				final Attributes mainAttributes = manifest.getMainAttributes();
+
+				// Check to see if the jar was built with a newer version of loom.
+				// This version of loom does not support the remap type value so throw an exception.
+				if (mainAttributes.getValue("Fabric-Loom-Mixin-Remap-Type") != null) {
+					throw new IllegalStateException("This version of loom does not support the mixin remap type value. Please update to the latest version of loom.");
+				}
+			}
+		}
 	}
 }
