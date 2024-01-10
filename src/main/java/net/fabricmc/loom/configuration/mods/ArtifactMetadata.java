@@ -78,6 +78,12 @@ public record ArtifactMetadata(boolean isFabricMod, RemapRequirements remapRequi
 					// Support opting into and out of remapping with "Fabric-Loom-Remap" manifest entry
 					remapRequirements = Boolean.parseBoolean(value) ? RemapRequirements.OPT_IN : RemapRequirements.OPT_OUT;
 				}
+
+				// Check to see if the jar was built with a newer version of loom.
+				// This version of loom does not support the remap type value so throw an exception.
+				if (mainAttributes.getValue("Fabric-Loom-Mixin-Remap-Type") != null) {
+					throw new IllegalStateException("This version of loom does not support the mixin remap type value. Please update to the latest version of loom.");
+				}
 			}
 
 			final String installerFile = platform == ModPlatform.QUILT ? QUILT_INSTALLER_PATH : INSTALLER_PATH;
