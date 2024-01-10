@@ -88,6 +88,12 @@ public class ModConfigurationRemapper {
 				final List<ModDependency> modDependencies = new ArrayList<>();
 
 				for (ArtifactRef artifact : resolveArtifacts(project, sourceConfig)) {
+					try {
+						ModUtils.validateJarManifest(artifact.path());
+					} catch (IOException e) {
+						throw new UncheckedIOException("Failed to read manifest from" + artifact.path(), e);
+					}
+
 					if (!ModUtils.shouldRemapMod(project.getLogger(), artifact.path(), extension.getPlatform().get(), sourceConfig.getName())) {
 						artifact.applyToConfiguration(project, targetConfig);
 						continue;
