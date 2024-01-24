@@ -1,7 +1,7 @@
 /*
  * This file is part of fabric-loom, licensed under the MIT License (MIT).
  *
- * Copyright (c) 2021-2023 FabricMC
+ * Copyright (c) 2021-2024 FabricMC
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -35,10 +35,13 @@ import org.gradle.api.Named;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.DependencyResolveDetails;
 import org.gradle.api.artifacts.ModuleDependency;
+import org.gradle.api.artifacts.ModuleVersionSelector;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.FileCollection;
+import org.jetbrains.annotations.VisibleForTesting;
 
 /**
  * Simplified but powerful dependency downloading.
@@ -46,6 +49,11 @@ import org.gradle.api.file.FileCollection;
  * @author Juuz
  */
 public final class DependencyDownloader {
+	private static final String LOG4J_GROUP = "org.apache.logging.log4j";
+	private static final String LOG4J_NAME = "log4j-core";
+	private static final String LOG4J_MINIMUM_VERSION = "2.17.1";
+	private static final int[] LOG4J_MINIMUM_VERSION_COMPONENTS = {2, 17, 1};
+
 	private final Project project;
 	private final List<DependencyEntry> dependencies = new ArrayList<>();
 	private final Map<Attribute<?>, Object> attributes = new HashMap<>();
@@ -133,6 +141,7 @@ public final class DependencyDownloader {
 				attributes.attribute((Attribute<Object>) attribute, value);
 			});
 		});
+		config.getResolutionStrategy().eachDependency(DependencyDownloader::upgradeLog4j);
 		FileCollection files = config.fileCollection(dep -> true);
 
 		if (resolve) {
@@ -140,6 +149,49 @@ public final class DependencyDownloader {
 		}
 
 		return files;
+	}
+
+	private static void upgradeLog4j(DependencyResolveDetails details) {
+		ModuleVersionSelector requested = details.getRequested();
+
+		if (LOG4J_GROUP.equals(requested.getGroup()) && LOG4J_NAME.equals(requested.getName())) {
+			final String requestedVersion = requested.getVersion();
+
+			if (requestedVersion != null && shouldUpgradeLog4jVersion(requestedVersion)) {
+				details.useVersion(LOG4J_MINIMUM_VERSION);
+			}
+		}
+	}
+
+	@VisibleForTesting
+	public static boolean shouldUpgradeLog4jVersion(String requestedVersion) {
+		final String[] splitVersion = requestedVersion.split("\\.");
+
+		for (int i = 0; i < LOG4J_MINIMUM_VERSION_COMPONENTS.length; i++) {
+			if (i >= splitVersion.length) {
+				// Not enough version components in the requested version, upgrade just to be sure.
+				return true;
+			}
+
+			final int minimumComponent = LOG4J_MINIMUM_VERSION_COMPONENTS[i];
+			final String givenComponentStr = splitVersion[i];
+			final int givenComponent;
+
+			try {
+				givenComponent = Integer.parseInt(givenComponentStr);
+			} catch (NumberFormatException e) {
+				// We can't read the version component for comparing, upgrade just to be sure.
+				return true;
+			}
+
+			if (givenComponent < minimumComponent) {
+				// Too old, upgrade.
+				return true;
+			}
+		}
+
+		// Seems to be new enough, let's not upgrade.
+		return false;
 	}
 
 	/**
