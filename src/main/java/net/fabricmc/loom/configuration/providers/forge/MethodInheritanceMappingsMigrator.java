@@ -73,7 +73,7 @@ public final class MethodInheritanceMappingsMigrator implements MappingsMigrator
 
 	@Override
 	public long setup(Project project, MinecraftProvider minecraftProvider, Path cache, Path rawMappings, boolean hasSrg, boolean hasMojang) throws IOException {
-		Path cacheFile = cache.resolve("method-inhertiance-migrator.json");
+		Path cacheFile = cache.resolve("method-inheritance-migrator.json");
 
 		if (!minecraftProvider.refreshDeps() && Files.exists(cacheFile)) {
 			try (BufferedReader reader = Files.newBufferedReader(cacheFile)) {
