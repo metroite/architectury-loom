@@ -123,6 +123,52 @@ public final class MethodInheritanceMappingsMigrator implements MappingsMigrator
 			MappingReader.read(reader, new MappingSourceNsSwitch(mappings, patchedNs));
 		}
 
+		Pair<Multimap<String, String>, Set<MethodKey>> collected = collectClassesAndMethods(jars);
+		Multimap<String, String> classInheritanceMap = collected.left();
+		Set<MethodKey> methods = collected.right();
+
+		Multimap<MethodKey, Pair<String, String>> overriddenIntermediaries = Multimaps.newSetMultimap(new HashMap<>(), LinkedHashSet::new);
+
+		for (MethodKey method : methods) {
+			// First check if the method is in the mappings, and as a different intermediary name
+			MappingTree.ClassMapping aClass = mappings.getClass(method.className());
+			if (aClass == null) continue;
+			MappingTree.MethodMapping aMethod = aClass.getMethod(method.name(), method.descriptor());
+			if (aMethod == null) continue;
+			String intermediaryName = aMethod.getName(MappingsNamespace.INTERMEDIARY.toString());
+			if (intermediaryName == null || Objects.equals(intermediaryName, method.name())) continue;
+
+			for (String superClass : classInheritanceMap.get(method.className())) {
+				if (methods.contains(new MethodKey(superClass, method.name(), method.descriptor()))) {
+					if (mappings.getClass(superClass) == null) {
+						// We will collect these methods here, and remove them later
+						// if there are more than intermediary name for the same method
+						String intermediaryDesc = aMethod.getDesc(MappingsNamespace.INTERMEDIARY.toString());
+						overriddenIntermediaries.put(new MethodKey(superClass, method.name(), method.descriptor()), new Pair<>(intermediaryName, intermediaryDesc));
+					}
+				}
+			}
+		}
+
+		Set<Pair<String, String>> methodsToRemove = new HashSet<>();
+
+		for (Map.Entry<MethodKey, Collection<Pair<String, String>>> entry : overriddenIntermediaries.asMap().entrySet()) {
+			if (entry.getValue().size() >= 2) {
+				// We should remove these names from the mappings
+				// as the particular method is inherited by multiple different intermediary names
+				for (Pair<String, String> pair : entry.getValue()) {
+					methodsToRemove.add(pair);
+					logger.info("Removing method {}{} from the mappings", pair.left(), pair.right());
+				}
+
+				break;
+			}
+		}
+
+		return methodsToRemove;
+	}
+
+	private static Pair<Multimap<String, String>, Set<MethodKey>> collectClassesAndMethods(Iterable<Path> jars) throws IOException {
 		Multimap<String, String> classInheritanceMap = Multimaps.newSetMultimap(new HashMap<>(), LinkedHashSet::new);
 		Set<MethodKey> methods = new HashSet<>();
 		Visitor visitor = new Visitor(Opcodes.ASM9, classInheritanceMap, methods);
@@ -138,54 +184,19 @@ public final class MethodInheritanceMappingsMigrator implements MappingsMigrator
 		}
 
 		// Populate class inheritance
-		Multimap<String, String> newClassInheritanceMap = Multimaps.newSetMultimap(new HashMap<>(), LinkedHashSet::new);
-		classInheritanceMap.asMap().entrySet().stream().map(entry -> {
-			// Collect all super classes, and their super classes, and so on
+		Multimap<String, String> classes = Multimaps.newSetMultimap(new HashMap<>(), LinkedHashSet::new);
+
+		for (Map.Entry<String, Collection<String>> entry : classInheritanceMap.asMap().entrySet()) {
 			Set<String> allSuperClasses = new HashSet<>();
 
 			for (String superClass : entry.getValue()) {
 				collectSuperClasses(superClass, new HashSet<>(), allSuperClasses, classInheritanceMap);
 			}
 
-			return Map.entry(entry.getKey(), allSuperClasses);
-		})
-		.forEach(e -> newClassInheritanceMap.putAll(e.getKey(), e.getValue()));
-
-		Set<Pair<String, String>> methodsToRemove = new HashSet<>();
-		Multimap<MethodKey, Pair<String, String>> overridenIntermedaries = Multimaps.newSetMultimap(new HashMap<>(), LinkedHashSet::new);
-
-		for (MethodKey method : methods) {
-			// First check if the method is in the mappings, and as a different intermediary name
-			MappingTree.ClassMapping aClass = mappings.getClass(method.className());
-			if (aClass == null) continue;
-			MappingTree.MethodMapping aMethod = aClass.getMethod(method.name(), method.descriptor());
-			if (aMethod == null) continue;
-			String intermediaryName = aMethod.getName(MappingsNamespace.INTERMEDIARY.toString());
-			if (intermediaryName == null || Objects.equals(intermediaryName, method.name())) continue;
-
-			for (String superClass : newClassInheritanceMap.get(method.className())) {
-				if (methods.contains(new MethodKey(superClass, method.name(), method.descriptor()))) {
-					if (mappings.getClass(superClass) == null) {
-						String intermediaryDesc = aMethod.getDesc(MappingsNamespace.INTERMEDIARY.toString());
-						overridenIntermedaries.put(new MethodKey(superClass, method.name(), method.descriptor()), new Pair<>(intermediaryName, intermediaryDesc));
-					}
-				}
-			}
+			classes.putAll(entry.getKey(), allSuperClasses);
 		}
 
-		for (Map.Entry<MethodKey, Collection<Pair<String, String>>> entry : overridenIntermedaries.asMap().entrySet()) {
-			if (entry.getValue().size() >= 2) {
-				// We should remove these names from the mappings
-				for (Pair<String, String> pair : entry.getValue()) {
-					methodsToRemove.add(pair);
-					logger.info("Removing method {}{} from the mappings", pair.left(), pair.right());
-				}
-
-				break;
-			}
-		}
-
-		return methodsToRemove;
+		return new Pair<>(classes, methods);
 	}
 
 	private static void collectSuperClasses(String className, Set<String> travelled, Set<String> allSuperClasses, Multimap<String, String> classInheritanceMap) {
