@@ -165,7 +165,7 @@ public class ModProcessor {
 	private void remapJars(List<ModDependency> remapList) throws IOException {
 		final LoomGradleExtension extension = LoomGradleExtension.get(project);
 		final MappingConfiguration mappingConfiguration = extension.getMappingConfiguration();
-		String fromM = IntermediaryNamespaces.intermediary(project);
+		String fromM = IntermediaryNamespaces.runtimeIntermediary(project);
 
 		Stopwatch stopwatch = Stopwatch.createStarted();
 
