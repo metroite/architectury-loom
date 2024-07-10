@@ -46,6 +46,7 @@ public class LoomRepositoryPlugin implements Plugin<PluginAware> {
 			"net.minecraftforge",
 			"cpw.mods",
 			"de.oceanlabs",
+			"net.jodah",
 			"org.mcmodlauncher"
 	);
 
