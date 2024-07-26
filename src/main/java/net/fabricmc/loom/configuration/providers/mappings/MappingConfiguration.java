@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Supplier;
 import com.google.gson.JsonObject;
 import dev.architectury.loom.util.MappingOption;
 import org.apache.tools.ant.util.StringUtils;
@@ -94,6 +95,7 @@ public class MappingConfiguration {
 	public Path tinyMappingsWithSrg;
 	public final Map<String, Path> mixinTinyMappings; // The mixin mappings have other names in intermediary.
 	public final Path srgToNamedSrg; // FORGE: srg to named in srg file format
+	private final Map<MappingOption, Supplier<Path>> mappingOptions;
 	private final Path unpickDefinitions;
 
 	private boolean hasUnpickDefinitions;
@@ -112,6 +114,8 @@ public class MappingConfiguration {
 		this.tinyMappingsWithMojang = mappingsWorkingDir.resolve("mappings-mojang.tiny");
 		this.mixinTinyMappings = new HashMap<>();
 		this.srgToNamedSrg = mappingsWorkingDir.resolve("mappings-srg-named.srg");
+		this.mappingOptions = new HashMap<>();
+		this.mappingOptions.put(MappingOption.DEFAULT, () -> this.tinyMappings);
 	}
 
 	public static MappingConfiguration create(Project project, SharedServiceManager serviceManager, DependencyInfo dependency, MinecraftProvider minecraftProvider) {
@@ -164,25 +168,15 @@ public class MappingConfiguration {
 	}
 
 	public TinyMappingsService getMappingsService(SharedServiceManager serviceManager, MappingOption mappingOption) {
-		final Path tinyMappings = switch (mappingOption) {
-		case WITH_SRG -> {
-			if (Files.notExists(this.tinyMappingsWithSrg)) {
-				throw new UnsupportedOperationException("Cannot get mappings service with SRG mappings without SRG enabled!");
-			}
+		Supplier<Path> mappingsSupplier = this.mappingOptions.get(mappingOption);
 
-			yield this.tinyMappingsWithSrg;
+		if (mappingsSupplier == null) {
+			throw new UnsupportedOperationException("Unsupported mapping option: " + mappingOption + ", it is possible that this option is not supported by this project / platform!");
+		} else if (Files.notExists(mappingsSupplier.get())) {
+			throw new UnsupportedOperationException("Mapping option " + mappingOption + " found but file does not exist!");
 		}
-		case WITH_MOJANG -> {
-			if (Files.notExists(this.tinyMappingsWithMojang)) {
-				throw new UnsupportedOperationException("Cannot get mappings service with Mojang mappings without Mojang merging enabled!");
-			}
 
-			yield this.tinyMappingsWithMojang;
-		}
-		default -> this.tinyMappings;
-		};
-
-		return TinyMappingsService.create(serviceManager, Objects.requireNonNull(tinyMappings));
+		return TinyMappingsService.create(serviceManager, Objects.requireNonNull(mappingsSupplier.get()));
 	}
 
 	protected void setup(Project project, SharedServiceManager serviceManager, MinecraftProvider minecraftProvider, Path inputJar) throws IOException {
@@ -208,6 +202,8 @@ public class MappingConfiguration {
 		LoomGradleExtension extension = LoomGradleExtension.get(project);
 
 		if (extension.isNeoForge()) {
+			this.mappingOptions.put(MappingOption.WITH_MOJANG, () -> this.tinyMappingsWithMojang);
+
 			// Generate the Mojmap-merged mappings if needed.
 			// Note that this needs to happen before manipulateMappings for FieldMigratedMappingConfiguration.
 			if (Files.notExists(tinyMappingsWithMojang) || extension.refreshDeps()) {
@@ -216,6 +212,12 @@ public class MappingConfiguration {
 		}
 
 		if (extension.shouldGenerateSrgTiny()) {
+			this.mappingOptions.put(MappingOption.WITH_SRG, () -> this.tinyMappingsWithSrg);
+
+			if (extension.isForge() && extension.getForgeProvider().usesMojangAtRuntime()) {
+				this.mappingOptions.put(MappingOption.WITH_MOJANG, () -> this.tinyMappingsWithSrg);
+			}
+
 			if (Files.notExists(tinyMappingsWithSrg) || extension.refreshDeps()) {
 				if (extension.isForge() && extension.getForgeProvider().usesMojangAtRuntime()) {
 					Path tmp = Files.createTempFile("mappings", ".tiny");
