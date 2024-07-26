@@ -112,13 +112,6 @@ public record ForgeRunTemplate(
 
 		// Add MOD_CLASSES, this is something that ForgeGradle does
 		settings.getEnvironmentVariables().computeIfAbsent("MOD_CLASSES", $ -> ConfigValue.of("{source_roots}").resolve(configValueResolver));
-
-		final ForgeProvider forgeProvider = settings.getExtension().getForgeProvider();
-
-		if (settings.getExtension().isForge() && forgeProvider.getVersion().getMajorVersion() >= Constants.Forge.MIN_UNION_RELAUNCHER_VERSION) {
-			settings.defaultMainClass(Constants.Forge.UNION_RELAUNCHER_MAIN_CLASS);
-			settings.property(Constants.Forge.UNION_RELAUNCHER_MAIN_CLASS_PROPERTY, main);
-		}
 	}
 
 	public Resolved resolve(ConfigValue.Resolver configValueResolver) {

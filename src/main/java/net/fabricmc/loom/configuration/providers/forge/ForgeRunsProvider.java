@@ -128,6 +128,8 @@ public class ForgeRunsProvider {
 			// Use a set-valued multimap for deduplicating paths.
 			Multimap<String, String> modClasses = MultimapBuilder.hashKeys().linkedHashSetValues().build();
 			NamedDomainObjectContainer<ModSettings> mods = extension.getMods();
+			// Forge 49+ bootstrap-dev uses ; as a separator, instead of File.pathSeparator
+			String separator = extension.getForgeProvider().getVersion().getMajorVersion() >= Constants.Forge.MIN_BOOTSTRAP_DEV_VERSION ? ";" : File.pathSeparator;
 
 			if (runConfig != null && !runConfig.getMods().isEmpty()) {
 				mods = runConfig.getMods();
@@ -147,7 +149,7 @@ public class ForgeRunsProvider {
 
 			string = modClasses.entries().stream()
 					.map(entry -> entry.getKey() + "%%" + entry.getValue())
-					.collect(Collectors.joining(File.pathSeparator));
+					.collect(Collectors.joining(separator));
 		} else if (key.equals("mcp_mappings")) {
 			string = "loom.stub";
 		} else if (json.has(key)) {
