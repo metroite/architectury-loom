@@ -34,7 +34,7 @@ import static org.gradle.testkit.runner.TaskOutcome.SUCCESS
 
 class Forge1206Test extends Specification implements GradleProjectTestTrait {
 	@Unroll
-	def "build #mcVersion #neoforgeVersion #mappings #patches"() {
+	def "build #mcVersion #forgeVersion #mappings #patches"() {
 		if (Integer.valueOf(System.getProperty("java.version").split("\\.")[0]) < 21) {
 			println("This test requires Java 21. Currently you have Java ${System.getProperty("java.version")}.")
 			return
@@ -43,7 +43,7 @@ class Forge1206Test extends Specification implements GradleProjectTestTrait {
 		setup:
 		def gradle = gradleProject(project: "forge/1206", version: DEFAULT_GRADLE)
 		gradle.buildGradle.text = gradle.buildGradle.text.replace('@MCVERSION@', mcVersion)
-				.replace('@FORGEVERSION@', neoforgeVersion)
+				.replace('@FORGEVERSION@', forgeVersion)
 				.replace('MAPPINGS', mappings) // Spotless doesn't like the @'s
 				.replace('PATCHES', patches)
 
@@ -54,7 +54,7 @@ class Forge1206Test extends Specification implements GradleProjectTestTrait {
 		result.task(":build").outcome == SUCCESS
 
 		where:
-		mcVersion | neoforgeVersion | mappings | patches
+		mcVersion | forgeVersion    | mappings | patches
 		'1.20.6'  | '1.20.6-50.1.3' | 'loom.officialMojangMappings()' | ''
 	}
 }
