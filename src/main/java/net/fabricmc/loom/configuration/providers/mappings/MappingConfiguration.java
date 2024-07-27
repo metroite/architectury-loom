@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +115,7 @@ public class MappingConfiguration {
 		this.tinyMappingsWithMojang = mappingsWorkingDir.resolve("mappings-mojang.tiny");
 		this.mixinTinyMappings = new HashMap<>();
 		this.srgToNamedSrg = mappingsWorkingDir.resolve("mappings-srg-named.srg");
-		this.mappingOptions = new HashMap<>();
+		this.mappingOptions = new EnumMap<>(MappingOption.class);
 		this.mappingOptions.put(MappingOption.DEFAULT, () -> this.tinyMappings);
 	}
 
